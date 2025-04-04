@@ -26,7 +26,7 @@ namespace SmartParkingLot.Application.Services
         {
             // Basic validation for pagination params
             pageNumber = Math.Max(1, pageNumber);
-            pageSize = Math.Clamp(pageSize, 5, 100); // Example limits
+            pageSize = Math.Clamp(pageSize, 2, 100); // Example limits
 
             var (spots, totalCount) = await _spotRepository.GetAllAsync(pageNumber, pageSize);
 
@@ -100,39 +100,40 @@ namespace SmartParkingLot.Application.Services
 
         public async Task OccupySpotAsync(Guid spotId, Guid deviceId)
         {
-            // --- Bonus: Rate Limiting ---
+            //El bonus
             if (!await _rateLimiter.IsActionAllowedAsync(deviceId, RateLimitActionKey))
             {
                 throw new ValidationException($"Device {deviceId} rate limit exceeded for action '{RateLimitActionKey}'. Please try again later.");
             }
-            // --- End Bonus ---
 
             if (!await _deviceRepository.IsDeviceRegisteredAsync(deviceId))
             {
                 throw new ValidationException($"Device with ID {deviceId} is not registered.");
             }
-
+            var deviceInSpot = await _spotRepository.ExistsOccupiedSpotByDeviceAsync(deviceId);
+            if (deviceInSpot)
+            {
+                throw new ValidationException($"Device with ID {deviceId} is occupied a parking spot.");
+            }
             var spot = await _spotRepository.GetByIdAsync(spotId) ?? throw new NotFoundException($"Parking spot with ID {spotId} not found.");
             try
             {
-                spot.Occupy(deviceId); // Domain entity handles internal state validation
+                spot.Occupy(deviceId); 
                 await _spotRepository.UpdateAsync(spot);
             }
-            catch (InvalidOperationException ex) // Catch domain validation errors
+            catch (InvalidOperationException ex) 
             {
-                // Map to application-level exception (Conflict)
                 throw new ConflictException(ex.Message, ex);
             }
         }
 
         public async Task FreeSpotAsync(Guid spotId, Guid deviceId)
         {
-            // --- Bonus: Rate Limiting ---
+            Guid? occupyingDeviceId;
             if (!await _rateLimiter.IsActionAllowedAsync(deviceId, RateLimitActionKey))
             {
                 throw new ValidationException($"Device {deviceId} rate limit exceeded for action '{RateLimitActionKey}'. Please try again later.");
             }
-            // --- End Bonus ---
 
             if (!await _deviceRepository.IsDeviceRegisteredAsync(deviceId))
             {
@@ -140,9 +141,14 @@ namespace SmartParkingLot.Application.Services
             }
 
             var spot = await _spotRepository.GetByIdAsync(spotId) ?? throw new NotFoundException($"Parking spot with ID {spotId} not found.");
+            occupyingDeviceId = spot.OccupyingDeviceId;
             try
             {
-                spot.Free(); // Domain entity handles internal state validation
+                spot.Free();
+                if (occupyingDeviceId != deviceId)
+                {
+                    throw new ValidationException($"Device {deviceId} cannot free spot {spotId} as it is not occupying it.");
+                }
                 await _spotRepository.UpdateAsync(spot);
             }
             catch (InvalidOperationException ex) // Catch domain validation errors

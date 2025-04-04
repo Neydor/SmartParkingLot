@@ -7,12 +7,12 @@ using SmartParkingLot.Application.Interfaces;
 
 namespace SmartParkingLot.API.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/parking-spots")]
     [ApiController]
     public class ParkingController : ControllerBase
     {
         private readonly IParkingService _parkingService;
-        private readonly ILogger<ParkingController> _logger; 
+        private readonly ILogger<ParkingController> _logger;
 
         private const string DeviceIdHeader = "X-Device-ID";
 
@@ -32,7 +32,6 @@ namespace SmartParkingLot.API.Controllers
             _logger.LogInformation("Getting all parking spots (Page: {Page}, Size: {Size})", pageNumber, pageSize);
             var result = await _parkingService.GetAllSpotsAsync(pageNumber, pageSize);
 
-            // Map to API-specific pagination response format
             var response = new ApiPaginatedResponse<ParkingSpotDto>
             {
                 Data = result.Items,
@@ -45,88 +44,34 @@ namespace SmartParkingLot.API.Controllers
             return Ok(response);
         }
 
-        // GET /api/parking-spots/available-count (Example endpoint not in spec, but useful)
-        [HttpGet("available-count")]
-        [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
-        public async Task<ActionResult<int>> GetAvailableSpotCount()
-        {
-            _logger.LogInformation("Getting available parking spot count");
-            var count = await _parkingService.GetAvailableSpotCountAsync();
-            return Ok(count);
-        }
-
-        // GET /api/parking-spots/{id} (Example endpoint not in spec, but useful)
-        [HttpGet("{id:guid}")]
-        [ProducesResponseType(typeof(ParkingSpotDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<ParkingSpotDto>> GetParkingSpotById(Guid id)
-        {
-            _logger.LogInformation("Getting parking spot by ID: {SpotId}", id);
-            var spot = await _parkingService.GetSpotByIdAsync(id);
-            if (spot == null)
-            {
-                return NotFound($"Parking spot with ID {id} not found.");
-            }
-            return Ok(spot);
-        }
-
         // POST /api/parking-spots
         [HttpPost]
         [ProducesResponseType(typeof(ParkingSpotDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ParkingSpotDto>> AddParkingSpot([FromBody] CreateParkingSpotDto createDto)
         {
-            if (!ModelState.IsValid) // Basic validation
+            if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
 
             _logger.LogInformation("Adding new parking spot with Name: {SpotName}", createDto.Name);
-            try
-            {
-                var newSpot = await _parkingService.AddSpotAsync(createDto);
-                // Return 201 Created with the location of the new resource and the resource itself
-                return CreatedAtAction(nameof(GetParkingSpotById), new { id = newSpot.Id }, newSpot);
-            }
-            catch (ValidationException ex)
-            {
-                _logger.LogWarning(ex, "Validation failed while adding spot: {Message}", ex.Message);
-                return BadRequest(ex.Message);
-            }
-            catch (Exception ex) // Catch unexpected errors
-            {
-                _logger.LogError(ex, "Error adding parking spot");
-                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
-            }
-        }
-
-        public Task<IActionResult> DeleteParkingSpot(Guid id)
-        {
-            return DeleteParkingSpot(id, _logger);
+            var newSpot = await _parkingService.AddSpotAsync(createDto);
+            return CreatedAtAction(nameof(_parkingService.GetSpotByIdAsync), new { id = newSpot.Id }, newSpot);
         }
 
         // DELETE /api/parking-spots/{id}
         [HttpDelete("{id:guid}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> DeleteParkingSpot(Guid id, ILogger _logger)
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteParkingSpot(Guid id)
         {
             _logger.LogInformation("Deleting parking spot with ID: {SpotId}", id);
-            try
-            {
-                await _parkingService.DeleteSpotAsync(id);
-                return NoContent(); // Standard response for successful DELETE
-            }
-            catch (NotFoundException ex)
-            {
-                _logger.LogWarning(ex, "Delete failed: {Message}", ex.Message);
-                return NotFound(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting parking spot {SpotId}", id);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
-            }
+            await _parkingService.DeleteSpotAsync(id);
+            return NoContent();
+
         }
 
         // POST /api/parking-spots/{id}/occupy
@@ -135,7 +80,8 @@ namespace SmartParkingLot.API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        [ProducesResponseType(StatusCodes.Status429TooManyRequests)] // For Rate Limit
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> OccupyParkingSpot(Guid id, [FromHeader(Name = DeviceIdHeader)] Guid deviceId)
         {
             if (deviceId == Guid.Empty)
@@ -144,31 +90,8 @@ namespace SmartParkingLot.API.Controllers
             }
 
             _logger.LogInformation("Device {DeviceId} attempting to occupy spot {SpotId}", deviceId, id);
-            try
-            {
-                await _parkingService.OccupySpotAsync(id, deviceId);
-                return NoContent();
-            }
-            catch (NotFoundException ex)
-            {
-                _logger.LogWarning(ex, "NotFoundException: {Message}", ex.Message);
-                return NotFound(ex.Message);
-            }
-            catch (ValidationException ex)
-            {
-                _logger.LogWarning(ex, "ValidationException: {Message}", ex.Message);
-                return BadRequest(ex.Message);
-            } // Catches unregistered device & rate limit
-            catch (ConflictException ex)
-            {
-                _logger.LogWarning(ex, "ConflictException: {Message}", ex.Message);
-                return Conflict(ex.Message);
-            } // Catches already occupied/free
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occupying parking spot {SpotId} by device {DeviceId}", id, deviceId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
-            }
+            await _parkingService.OccupySpotAsync(id, deviceId);
+            return NoContent();
         }
 
         // POST /api/parking-spots/{id}/free
@@ -177,7 +100,8 @@ namespace SmartParkingLot.API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        [ProducesResponseType(StatusCodes.Status429TooManyRequests)] // For Rate Limit
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> FreeParkingSpot(Guid id, [FromHeader(Name = DeviceIdHeader)] Guid deviceId)
         {
             if (deviceId == Guid.Empty)
@@ -186,28 +110,8 @@ namespace SmartParkingLot.API.Controllers
             }
 
             _logger.LogInformation("Device {DeviceId} attempting to free spot {SpotId}", deviceId, id);
-            try
-            {
-                await _parkingService.FreeSpotAsync(id, deviceId);
-                return NoContent();
-            }
-            catch (NotFoundException ex) { 
-                _logger.LogWarning(ex, "NotFoundException: {Message}", ex.Message); 
-                return NotFound(ex.Message); 
-            }
-            catch (ValidationException ex) { 
-                _logger.LogWarning(ex, "ValidationException: {Message}", ex.Message); 
-                return BadRequest(ex.Message); 
-            }
-            catch (ConflictException ex) { 
-                _logger.LogWarning(ex, "ConflictException: {Message}", ex.Message);
-                return Conflict(ex.Message); 
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error freeing parking spot {SpotId} by device {DeviceId}", id, deviceId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
-            }
+            await _parkingService.FreeSpotAsync(id, deviceId);
+            return NoContent();
         }
     }
 }

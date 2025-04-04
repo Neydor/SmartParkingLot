@@ -17,9 +17,15 @@ public class ParkingServiceTests
     private readonly ParkingService _parkingService;
 
     private readonly Guid _testSpotId = Guid.NewGuid();
+    private readonly Guid _testSpotId2 = Guid.NewGuid();
+    private readonly Guid _testSpotIdWithDevice = Guid.NewGuid();
     private readonly Guid _testDeviceId = Guid.NewGuid();
+    private readonly Guid _testDeviceId2 = Guid.NewGuid();
+    private readonly Guid _testDeviceId3 = Guid.NewGuid();
     private readonly Guid _unregisteredDeviceId = Guid.NewGuid();
     private readonly ParkingSpot _testSpot;
+    private readonly ParkingSpot _testSpot2;
+    private readonly ParkingSpot _testSpot3;
 
     public ParkingServiceTests()
     {
@@ -32,13 +38,23 @@ public class ParkingServiceTests
             _mockDeviceRepo.Object,
             _mockRateLimiter.Object);
 
-        _testSpot = new ParkingSpot(_testSpotId, "TestSpotA1"); // Assume starts Free
+        _testSpot = new ParkingSpot(_testSpotId, "TestSpotA1");
+        _testSpot2 = new ParkingSpot(_testSpotId2, "TestSpotA2"); 
+        _testSpot3 = new ParkingSpot(_testSpotIdWithDevice, "TestWithDeviceA3"); 
+        //_testSpot3.Occupy(_testDeviceId3); 
 
         // Default setups
         _mockDeviceRepo.Setup(r => r.IsDeviceRegisteredAsync(_testDeviceId)).ReturnsAsync(true);
+        _mockDeviceRepo.Setup(r => r.IsDeviceRegisteredAsync(_testDeviceId2)).ReturnsAsync(true);
+        _mockDeviceRepo.Setup(r => r.IsDeviceRegisteredAsync(_testDeviceId3)).ReturnsAsync(true);
         _mockDeviceRepo.Setup(r => r.IsDeviceRegisteredAsync(_unregisteredDeviceId)).ReturnsAsync(false);
         _mockSpotRepo.Setup(r => r.GetByIdAsync(_testSpotId)).ReturnsAsync(_testSpot);
         _mockSpotRepo.Setup(r => r.ExistsAsync(_testSpotId)).ReturnsAsync(true);
+        _mockSpotRepo.Setup(r => r.GetByIdAsync(_testSpotId2)).ReturnsAsync(_testSpot2);
+        _mockSpotRepo.Setup(r => r.ExistsAsync(_testSpotId2)).ReturnsAsync(true);
+        _mockSpotRepo.Setup(r => r.GetByIdAsync(_testSpotIdWithDevice)).ReturnsAsync(_testSpot3);
+        _mockSpotRepo.Setup(r => r.ExistsAsync(_testSpotIdWithDevice)).ReturnsAsync(true);
+        _mockSpotRepo.Setup(r => r.ExistsOccupiedSpotByDeviceAsync(_testSpotIdWithDevice)).ReturnsAsync(true);
         _mockRateLimiter.Setup(r => r.IsActionAllowedAsync(It.IsAny<Guid>(), It.IsAny<string>())).ReturnsAsync(true); // Allow by default
     }
 
@@ -91,14 +107,28 @@ public class ParkingServiceTests
     }
 
     [Fact]
+    public async Task FreeSpotAsync_DeviceNotTheSame_ShouldThrowConflictException()
+    {
+        // Arrange
+        _testSpot.Occupy(_testDeviceId); // Pre-occupy the spot with _testDeviceId
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => _parkingService.FreeSpotAsync(_testSpotId, _testDeviceId2));
+        Assert.Contains("as it is not occupying it", exception.Message);
+        _mockSpotRepo.Verify(r => r.UpdateAsync(It.IsAny<ParkingSpot>()), Times.Never); // Should not update
+    }
+
+    [Fact]
     public async Task FreeSpotAsync_SpotAlreadyFree_ShouldThrowConflictException()
     {
-        // Arrange (Spot is initially Free)
+        // Arrange
+        _testSpot.Occupy(_testDeviceId); 
+        _testSpot.Free(); 
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ConflictException>(() => _parkingService.FreeSpotAsync(_testSpotId, _testDeviceId));
         Assert.Contains("already free", exception.Message);
-        _mockSpotRepo.Verify(r => r.UpdateAsync(It.IsAny<ParkingSpot>()), Times.Never);
+        _mockSpotRepo.Verify(r => r.UpdateAsync(It.IsAny<ParkingSpot>()), Times.Never); // Should not update
     }
 
     [Fact]
@@ -112,6 +142,19 @@ public class ParkingServiceTests
         Assert.Contains("rate limit exceeded", exception.Message); // Check for specific message
         _mockDeviceRepo.Verify(r => r.IsDeviceRegisteredAsync(It.IsAny<Guid>()), Times.Never); // Should not check device registration if rate limited
         _mockSpotRepo.Verify(r => r.UpdateAsync(It.IsAny<ParkingSpot>()), Times.Never); // Should not update
+    }
+    
+    [Fact]
+    public async Task OccupySpotAsync_DeviceInAnotherSpot_ShouldThrowValidationException()
+    {
+        // Arrange
+        _testSpot3.Occupy(_testDeviceId3); // Pre-occupy another spot with the device
+        _mockSpotRepo.Setup(r => r.ExistsOccupiedSpotByDeviceAsync(_testDeviceId3)).ReturnsAsync(true);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => _parkingService.OccupySpotAsync(_testSpotId, _testDeviceId3));
+        Assert.Contains("is occupied a parking spot", exception.Message);
+        _mockSpotRepo.Verify(r => r.UpdateAsync(It.IsAny<ParkingSpot>()), Times.Never); // Should not update again
     }
 
     [Fact]
@@ -161,7 +204,4 @@ public class ParkingServiceTests
         await Assert.ThrowsAsync<NotFoundException>(() => _parkingService.DeleteSpotAsync(Guid.NewGuid()));
         _mockSpotRepo.Verify(r => r.DeleteAsync(It.IsAny<Guid>()), Times.Never);
     }
-
-    // Add more tests for GetAllSpotsAsync (pagination logic), GetSpotByIdAsync, GetAvailableSpotCountAsync etc.
-    // Test edge cases like empty name for AddSpotAsync.
 }

@@ -12,5 +12,6 @@ namespace SmartParkingLot.Domain.Interfaces
         Task DeleteAsync(Guid id);
         Task<int> GetTotalCountAsync(); // Helper for pagination
         Task<bool> ExistsAsync(Guid id);
+        Task<bool> ExistsOccupiedSpotByDeviceAsync(Guid deviceId);
     }
 }

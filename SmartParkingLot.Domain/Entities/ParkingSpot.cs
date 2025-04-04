@@ -5,12 +5,11 @@ namespace SmartParkingLot.Domain.Entities
     public class ParkingSpot
     {
         public Guid Id { get; private set; }
-        public string Name { get; private set; } // e.g., "A1", "B5"
+        public string Name { get; private set; } 
         public ParkingSpotStatus Status { get; private set; }
-        public Guid? OccupyingDeviceId { get; private set; } // Track which device occupied it
+        public Guid? OccupyingDeviceId { get; private set; } 
         public DateTime? LastStatusChangeUtc { get; private set; }
 
-        // Private constructor for persistence/mapping frameworks
         private ParkingSpot() { }
 
         public ParkingSpot(Guid id, string name)
@@ -25,7 +24,6 @@ namespace SmartParkingLot.Domain.Entities
         {
             if (Status == ParkingSpotStatus.Occupied)
             {
-                // Maybe throw specific domain exception later if needed
                 throw new InvalidOperationException($"Spot {Name} ({Id}) is already occupied.");
             }
             Status = ParkingSpotStatus.Occupied;
@@ -33,7 +31,7 @@ namespace SmartParkingLot.Domain.Entities
             LastStatusChangeUtc = DateTime.UtcNow;
         }
 
-        public void Free() // Pass deviceId for potential auditing/validation
+        public void Free()
         {
             if (Status == ParkingSpotStatus.Free)
             {
@@ -42,7 +40,6 @@ namespace SmartParkingLot.Domain.Entities
             Status = ParkingSpotStatus.Free;
             OccupyingDeviceId = null;
             LastStatusChangeUtc = DateTime.UtcNow;
-            // deviceId parameter is currently unused, consider using it for auditing/validation
         }
 
         public void UpdateName(string newName)
