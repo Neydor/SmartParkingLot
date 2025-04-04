@@ -1,6 +1,10 @@
+using SmartParkingLot.API.Middleware;
+using SmartParkingLot.Application.Interfaces;
 using SmartParkingLot.Application.Services;
 using SmartParkingLot.Domain.Interfaces;
-using SmartParkingLot.Infraestructure.Repositories;
+using SmartParkingLot.Infraestructure.Persistence.Repositories;
+using System.Threading.RateLimiting;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,19 +13,30 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Smart Parking Lot API",
+        Version = "v1",
+        Description = "API for managing parking spots and simulated IoT device interactions."
+    });
+});
 
+// Add Logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 
-// Register Data Store (Singleton for In-Memory)
-builder.Services.AddSingleton<InMemoryDataStore>();
+// Register Application Layer Services
+builder.Services.AddScoped<IParkingService, ParkingService>();
 
-// Register Repositories
-builder.Services.AddScoped<IParkingSpotRepository, InMemoryParkingSpotRepository>();
-builder.Services.AddScoped<IDeviceRepository, InMemoryDeviceRepository>();
+// Register Infrastructure Layer Services (Repositories, etc.)
+builder.Services.AddSingleton<IParkingSpotRepository, ParkingSpotRepository>(); // Singleton for in-memory
+builder.Services.AddSingleton<IDeviceRepository, DeviceRepository>();       // Singleton for in-memory
 
-// Register Services
-builder.Services.AddScoped<IParkingSpotService, ParkingSpotService>();
-builder.Services.AddScoped<IDeviceRegistryService, DeviceRegistryService>();
+// Register Bonus Features
+builder.Services.AddSingleton<IRateLimiterService, RateLimiterService>(); // Singleton for in-memory rate limiter
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -33,8 +48,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseMiddleware<ExceptionHandlerMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+await app.RunAsync();

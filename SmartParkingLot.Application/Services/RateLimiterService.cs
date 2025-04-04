@@ -1,17 +1,12 @@
-﻿using System;
+﻿using SmartParkingLot.Application.Interfaces;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SmartParkingLot.Application.Services
 {
     public class RateLimiterService: IRateLimiterService
     {
-        // Store last action time per device per action type
         private readonly ConcurrentDictionary<(Guid deviceId, string actionKey), DateTime> _lastActionTimestamps = new();
-        private readonly TimeSpan _rateLimitWindow = TimeSpan.FromSeconds(10); // e.g., 1 action per 10 seconds
+        private readonly TimeSpan _rateLimitWindow = TimeSpan.FromSeconds(10); 
 
         public Task<bool> IsActionAllowedAsync(Guid deviceId, string actionKey)
         {
@@ -22,13 +17,12 @@ namespace SmartParkingLot.Application.Services
             {
                 if (now - lastActionTime < _rateLimitWindow)
                 {
-                    return Task.FromResult(false); // Rate limit exceeded
+                    return Task.FromResult(false); 
                 }
             }
 
-            // Update or add the timestamp for the current action
             _lastActionTimestamps[key] = now;
-            return Task.FromResult(true); // Action allowed
+            return Task.FromResult(true); 
         }
     }
 }

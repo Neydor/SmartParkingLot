@@ -13,6 +13,9 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["SmartParkingLot.API/SmartParkingLot.API.csproj", "SmartParkingLot.API/"]
+COPY ["SmartParkingLot.Application/SmartParkingLot.Application.csproj", "SmartParkingLot.Application/"]
+COPY ["SmartParkingLot.Domain/SmartParkingLot.Domain.csproj", "SmartParkingLot.Domain/"]
+COPY ["SmartParkingLot.Infrastructure/SmartParkingLot.Infrastructure.csproj", "SmartParkingLot.Infrastructure/"]
 RUN dotnet restore "./SmartParkingLot.API/SmartParkingLot.API.csproj"
 COPY . .
 WORKDIR "/src/SmartParkingLot.API"

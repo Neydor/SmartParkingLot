@@ -1,9 +1,4 @@
 ﻿using SmartParkingLot.Domain.Enums;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SmartParkingLot.Domain.Entities
 {
@@ -38,20 +33,16 @@ namespace SmartParkingLot.Domain.Entities
             LastStatusChangeUtc = DateTime.UtcNow;
         }
 
-        public void Free(Guid deviceId) // Pass deviceId for potential auditing/validation
+        public void Free() // Pass deviceId for potential auditing/validation
         {
             if (Status == ParkingSpotStatus.Free)
             {
                 throw new InvalidOperationException($"Spot {Name} ({Id}) is already free.");
             }
-            // Optional: Validate if the freeing device matches the occupying one
-            // if(OccupyingDeviceId.HasValue && OccupyingDeviceId.Value != deviceId)
-            // {
-            //     throw new InvalidOperationException("Device mismatch attempting to free spot.");
-            // }
             Status = ParkingSpotStatus.Free;
             OccupyingDeviceId = null;
             LastStatusChangeUtc = DateTime.UtcNow;
+            // deviceId parameter is currently unused, consider using it for auditing/validation
         }
 
         public void UpdateName(string newName)
