@@ -1,7 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: false
----
-- Haz la documentacion en inglés
-- Para cada función genera docstring

@@ -15,7 +15,7 @@ namespace SmartParkingLot.Infraestructure.Persistence.Repositories
 
         public Task RegisterDeviceAsync(Device device)
         {
-            _devices.TryAdd(device.Id, device); // Ignore if already exists for simplicity
+            _devices.TryAdd(device.Id, device); 
             return Task.CompletedTask;
         }
 

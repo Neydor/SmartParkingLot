@@ -16,12 +16,12 @@ namespace SmartParkingLot.Infraestructure.Persistence.Repositories
 
         public Task<(IEnumerable<ParkingSpot> Spots, int TotalCount)> GetAllAsync(int pageNumber, int pageSize)
         {
-            var allSpots = _spots.Values.OrderBy(s => s.Name).ToList(); // Order for consistent pagination
+            var allSpots = _spots.Values.OrderBy(s => s.Name).ToList(); 
             var totalCount = allSpots.Count;
             var paginatedSpots = allSpots
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
-                .ToList(); // Execute query
+                .ToList(); 
 
             return Task.FromResult(((IEnumerable<ParkingSpot>)paginatedSpots, totalCount));
         }
@@ -41,7 +41,7 @@ namespace SmartParkingLot.Infraestructure.Persistence.Repositories
             {
                 throw new InvalidOperationException($"Spot with ID {spot.Id} not found for update.");
             }
-            _spots[spot.Id] = spot; // Replace existing entry
+            _spots[spot.Id] = spot; 
             return Task.CompletedTask;
         }
 

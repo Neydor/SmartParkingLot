@@ -12,21 +12,20 @@ namespace SmartParkingLot.Application.Services
     {
         private readonly IParkingSpotRepository _spotRepository;
         private readonly IDeviceRepository _deviceRepository;
-        private readonly IRateLimiterService _rateLimiter; // Bonus
-        private const string RateLimitActionKey = "spot_status_change"; // Bonus
+        private readonly IRateLimiterService _rateLimiter;
+        private const string RateLimitActionKey = "spot_status_change"; 
 
         public ParkingService(IParkingSpotRepository spotRepository, IDeviceRepository deviceRepository, IRateLimiterService rateLimiter)
         {
             _spotRepository = spotRepository ?? throw new ArgumentNullException(nameof(spotRepository));
             _deviceRepository = deviceRepository ?? throw new ArgumentNullException(nameof(deviceRepository));
-            _rateLimiter = rateLimiter ?? throw new ArgumentNullException(nameof(rateLimiter)); // Bonus
+            _rateLimiter = rateLimiter ?? throw new ArgumentNullException(nameof(rateLimiter)); 
         }
 
         public async Task<PaginatedResultDto<ParkingSpotDto>> GetAllSpotsAsync(int pageNumber, int pageSize)
         {
-            // Basic validation for pagination params
             pageNumber = Math.Max(1, pageNumber);
-            pageSize = Math.Clamp(pageSize, 2, 100); // Example limits
+            pageSize = Math.Clamp(pageSize, 2, 100); 
 
             var (spots, totalCount) = await _spotRepository.GetAllAsync(pageNumber, pageSize);
 
@@ -53,7 +52,7 @@ namespace SmartParkingLot.Application.Services
             var spot = await _spotRepository.GetByIdAsync(id);
             if (spot == null)
             {
-                return null; // Or throw NotFoundException
+                return null; 
             }
 
             return new ParkingSpotDto
@@ -70,14 +69,12 @@ namespace SmartParkingLot.Application.Services
         {
             if (string.IsNullOrWhiteSpace(createDto.Name))
             {
-                // Basic validation, could use FluentValidation later
                 throw new System.ComponentModel.DataAnnotations.ValidationException("Parking spot name cannot be empty.");
             }
 
             var newSpot = new ParkingSpot(Guid.NewGuid(), createDto.Name);
             await _spotRepository.AddAsync(newSpot);
 
-            // Map to DTO for return
             return new ParkingSpotDto
             {
                 Id = newSpot.Id,
@@ -151,18 +148,15 @@ namespace SmartParkingLot.Application.Services
                 }
                 await _spotRepository.UpdateAsync(spot);
             }
-            catch (InvalidOperationException ex) // Catch domain validation errors
+            catch (InvalidOperationException ex) 
             {
-                // Map to application-level exception (Conflict)
                 throw new ConflictException(ex.Message, ex);
             }
         }
 
         public async Task<int> GetAvailableSpotCountAsync()
         {
-            // This could be optimized if needed (e.g., maintaining a counter)
-            // but querying is fine for moderate numbers of spots.
-            var (spots, _) = await _spotRepository.GetAllAsync(1, int.MaxValue); // Get all spots
+            var (spots, _) = await _spotRepository.GetAllAsync(1, int.MaxValue); 
             return spots.Count(s => s.Status == ParkingSpotStatus.Free);
         }
     }

@@ -38,6 +38,7 @@ namespace SmartParkingLot.Infraestructure.Persistence
                 Console.WriteLine($"Registered Device 2: {device2.Id}");
                 Console.WriteLine($"Added A1: {spot1.Id} ({spot1.Name})");
                 Console.WriteLine($"Added A2: {spot2.Id} ({spot2.Name})");
+                Console.WriteLine($"Added A3: {spot3.Id} ({spot3.Name})");
 
 
             }
